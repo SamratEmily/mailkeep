@@ -1,4 +1,4 @@
-=== Samrat Emily Mail Tracker ===
+=== Mail Logbook ===
 Contributors: emily50
 Tags: mail log, email log, email tracker, wp_mail, smtp
 Requires at least: 5.8
@@ -12,7 +12,7 @@ Capture and log every email sent from your WordPress site.
 
 == Description ==
 
-Samrat Emily Mail Tracker is a lightweight and powerful solution for monitoring all outgoing emails on your WordPress site. Whether you are troubleshooting a broken notification or auditing what your site sends, Samrat Emily Mail Tracker captures every message sent through `wp_mail()`, no matter which plugin or theme triggered it.
+Mail Logbook is a lightweight and powerful solution for monitoring all outgoing emails on your WordPress site. Whether you are troubleshooting a broken notification or auditing what your site sends, Mail Logbook captures every message sent through `wp_mail()`, no matter which plugin or theme triggered it.
 
 ### Features
 * **Full Email Capture**: Logs recipient, subject, headers, and full message content.
@@ -26,7 +26,7 @@ Samrat Emily Mail Tracker is a lightweight and powerful solution for monitoring 
 
 == Installation ==
 
-1. Upload the `samrat-emily-mail-tracker` folder to the `/wp-content/plugins/` directory.
+1. Upload the `mail-logbook` folder to the `/wp-content/plugins/` directory.
 2. Activate the plugin through the 'Plugins' menu in WordPress.
 3. Your logs will appear under the new 'Mails' menu in your admin dashboard.
 

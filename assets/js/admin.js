@@ -1,8 +1,8 @@
 /**
- * Samrat Emily Mail Tracker Admin JS
+ * Mail Logbook Admin JS
  */
 document.addEventListener('DOMContentLoaded', function () {
-    var i18n = window.samratEmilyMailTracker || {};
+    var i18n = window.mailLogbook || {};
 
     function updateTotalCount(total) {
         var counter = document.getElementById('mail-log-total-count');
@@ -91,7 +91,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 url: i18n.ajax_url,
                 type: 'POST',
                 data: {
-                    action: 'samrat_emily_mail_tracker_delete_log',
+                    action: 'mail_logbook_delete_log',
                     id: id,
                     nonce: i18n.nonce
                 },
@@ -135,7 +135,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 url: i18n.ajax_url,
                 type: 'POST',
                 data: {
-                    action: 'samrat_emily_mail_tracker_bulk_delete',
+                    action: 'mail_logbook_bulk_delete',
                     ids: selectedIds,
                     nonce: i18n.nonce
                 },
@@ -177,7 +177,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 url: i18n.ajax_url,
                 type: 'POST',
                 data: {
-                    action: 'samrat_emily_mail_tracker_clear_all',
+                    action: 'mail_logbook_clear_all',
                     nonce: i18n.nonce
                 },
                 success: function (response) {

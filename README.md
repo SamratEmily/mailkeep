@@ -1,4 +1,4 @@
-# 📧 Samrat Emily Mail Tracker
+# 📧 Mail Logbook
 
 A premium, lightweight, and powerful email logging solution for WordPress. Captures every email sent through `wp_mail()`, regardless of which plugin triggered it.
 
@@ -15,25 +15,25 @@ A premium, lightweight, and powerful email logging solution for WordPress. Captu
 
 ## 🛠️ Installation
 
-1. Upload the `samrat-emily-mail-tracker` folder to your `/wp-content/plugins/` directory.
+1. Upload the `mail-logbook` folder to your `/wp-content/plugins/` directory.
 2. Activate the plugin through the **'Plugins'** menu in WordPress.
 3. Access your logs via the new **'Mails'** menu in the admin sidebar.
 
 ## 📂 File Structure
 
 ```text
-samrat-emily-mail-tracker/
+mail-logbook/
 ├── assets/
 │   ├── css/
 │   │   └── admin.css             # Premium administrative styles
 │   └── js/
 │       └── admin.js              # Interactive UI logic
 ├── includes/
-│   └── class-samrat-emily-mail-tracker.php # Core plugin engine
+│   └── class-mail-logbook.php # Core plugin engine
 ├── templates/
 │   ├── admin-logs.php            # Mail logs display archive
 │   └── admin-settings.php        # Plugin configuration page
-├── samrat-emily-mail-tracker.php          # Main entry point & constants
+├── mail-logbook.php          # Main entry point & constants
 └── uninstall.php                          # Cleans up on plugin deletion
 ```
 

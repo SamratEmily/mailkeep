@@ -6,7 +6,7 @@
  * site of a multisite network. Runs only when WordPress deletes the plugin
  * through the admin UI, never on deactivation.
  *
- * @package Samrat_Emily_Mail_Tracker
+ * @package Mailkeep
  */
 
 if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
@@ -18,29 +18,29 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
  *
  * @return void
  */
-function samrat_emily_mail_tracker_uninstall_site() {
+function mailkeep_uninstall_site() {
 	global $wpdb;
 
-	$table_name = $wpdb->prefix . 'samrat_emily_mail_tracker_logs';
+	$table_name = esc_sql( $wpdb->prefix . 'mailkeep_logs' );
 
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.SchemaChange, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $table_name is built from $wpdb->prefix and a literal suffix, never from user input, and is escaped by esc_sql().
 	$wpdb->query( "DROP TABLE IF EXISTS $table_name" );
 
-	delete_option( 'samrat_emily_mail_tracker_settings' );
-	delete_option( 'samrat_emily_mail_tracker_db_version' );
-	delete_transient( 'samrat_emily_mail_tracker_cleanup_lock' );
+	delete_option( 'mailkeep_settings' );
+	delete_option( 'mailkeep_db_version' );
+	delete_transient( 'mailkeep_cleanup_lock' );
 
-	wp_clear_scheduled_hook( 'samrat_emily_mail_tracker_cleanup' );
+	wp_clear_scheduled_hook( 'mailkeep_cleanup' );
 }
 
 if ( is_multisite() ) {
-	$samrat_emily_mail_tracker_site_ids = get_sites( array( 'fields' => 'ids', 'number' => 0 ) );
+	$mailkeep_site_ids = get_sites( array( 'fields' => 'ids', 'number' => 0 ) );
 
-	foreach ( $samrat_emily_mail_tracker_site_ids as $samrat_emily_mail_tracker_site_id ) {
-		switch_to_blog( $samrat_emily_mail_tracker_site_id );
-		samrat_emily_mail_tracker_uninstall_site();
+	foreach ( $mailkeep_site_ids as $mailkeep_site_id ) {
+		switch_to_blog( $mailkeep_site_id );
+		mailkeep_uninstall_site();
 		restore_current_blog();
 	}
 } else {
-	samrat_emily_mail_tracker_uninstall_site();
+	mailkeep_uninstall_site();
 }

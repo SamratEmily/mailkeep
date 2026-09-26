@@ -1,8 +1,8 @@
 <?php
 /**
- * Main Samrat_Emily_Mail_Tracker class file.
+ * Main Mailkeep class file.
  *
- * @package Samrat_Emily_Mail_Tracker
+ * @package Mailkeep
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -12,28 +12,28 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Core plugin engine.
  */
-class Samrat_Emily_Mail_Tracker {
+class Mailkeep {
 
 	/**
 	 * Schema revision. Bump whenever create_table() changes so that existing
 	 * installs pick the change up through maybe_upgrade().
 	 */
-	const DB_VERSION = '3';
+	const DB_VERSION = '1';
 
 	/**
 	 * Option holding the installed schema revision.
 	 */
-	const DB_VERSION_OPTION = 'samrat_emily_mail_tracker_db_version';
+	const DB_VERSION_OPTION = 'mailkeep_db_version';
 
 	/**
 	 * Cron hook running the retention cleanup.
 	 */
-	const CLEANUP_HOOK = 'samrat_emily_mail_tracker_cleanup';
+	const CLEANUP_HOOK = 'mailkeep_cleanup';
 
 	/**
 	 * Replacement written over credential bearing query arguments.
 	 */
-	const REDACTED = 'REDACTED-BY-MAIL-TRACKER';
+	const REDACTED = 'REDACTED-BY-MAILKEEP';
 
 	/**
 	 * Rows read per admin page.
@@ -45,7 +45,7 @@ class Samrat_Emily_Mail_Tracker {
 	 *
 	 * @var string
 	 */
-	private $option_name = 'samrat_emily_mail_tracker_settings';
+	private $option_name = 'mailkeep_settings';
 
 	/**
 	 * Register runtime hooks.
@@ -56,7 +56,6 @@ class Samrat_Emily_Mail_Tracker {
 	 * @return void
 	 */
 	public function register_hooks() {
-		add_action( 'init', array( $this, 'load_textdomain' ) );
 		add_action( 'init', array( $this, 'maybe_upgrade' ) );
 		add_action( 'init', array( $this, 'maybe_schedule_cleanup' ) );
 
@@ -66,7 +65,7 @@ class Samrat_Emily_Mail_Tracker {
 		add_action( 'admin_menu', array( $this, 'add_admin_menu' ) );
 		add_action( 'admin_init', array( $this, 'register_settings' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
-		add_filter( 'plugin_action_links_' . plugin_basename( SAMRAT_EMILY_MAIL_TRACKER_PLUGIN_FILE ), array( $this, 'add_plugin_action_links' ) );
+		add_filter( 'plugin_action_links_' . plugin_basename( MAILKEEP_PLUGIN_FILE ), array( $this, 'add_plugin_action_links' ) );
 
 		// Create the table on sites added to a network after activation.
 		add_action( 'wp_initialize_site', array( $this, 'on_new_site' ), 20 );
@@ -76,9 +75,9 @@ class Samrat_Emily_Mail_Tracker {
 		add_filter( 'wp_privacy_personal_data_erasers', array( $this, 'register_privacy_eraser' ) );
 
 		// AJAX Handlers.
-		add_action( 'wp_ajax_samrat_emily_mail_tracker_delete_log', array( $this, 'ajax_delete_log' ) );
-		add_action( 'wp_ajax_samrat_emily_mail_tracker_bulk_delete', array( $this, 'ajax_bulk_delete' ) );
-		add_action( 'wp_ajax_samrat_emily_mail_tracker_clear_all', array( $this, 'ajax_clear_all' ) );
+		add_action( 'wp_ajax_mailkeep_delete_log', array( $this, 'ajax_delete_log' ) );
+		add_action( 'wp_ajax_mailkeep_bulk_delete', array( $this, 'ajax_bulk_delete' ) );
+		add_action( 'wp_ajax_mailkeep_clear_all', array( $this, 'ajax_clear_all' ) );
 	}
 
 	/**
@@ -92,20 +91,7 @@ class Samrat_Emily_Mail_Tracker {
 	public function get_table_name() {
 		global $wpdb;
 
-		return $wpdb->prefix . 'samrat_emily_mail_tracker_logs';
-	}
-
-	/**
-	 * Load translations for installs outside of WordPress.org.
-	 *
-	 * @return void
-	 */
-	public function load_textdomain() {
-		load_plugin_textdomain(
-			'samrat-emily-mail-tracker',
-			false,
-			dirname( plugin_basename( SAMRAT_EMILY_MAIL_TRACKER_PLUGIN_FILE ) ) . '/languages'
-		);
+		return esc_sql( $wpdb->prefix . 'mailkeep_logs' );
 	}
 
 	/* ---------------------------------------------------------------------
@@ -154,42 +140,7 @@ class Samrat_Emily_Mail_Tracker {
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 		dbDelta( $sql );
 
-		$this->maybe_drop_source_column();
-
 		update_option( self::DB_VERSION_OPTION, self::DB_VERSION );
-	}
-
-	/**
-	 * Drop the legacy source column.
-	 *
-	 * dbDelta() only ever adds columns, so installs upgrading from a version
-	 * that tracked WooCommerce/Dokan as a "source" need this run once to
-	 * remove it. Checked via information_schema so it is safe to call on a
-	 * table that never had the column.
-	 *
-	 * @return void
-	 */
-	private function maybe_drop_source_column() {
-		global $wpdb;
-
-		$table_name = $this->get_table_name();
-
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-		$column_exists = $wpdb->get_var(
-			$wpdb->prepare(
-				'SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = %s',
-				DB_NAME,
-				$table_name,
-				'source'
-			)
-		);
-
-		if ( ! $column_exists ) {
-			return;
-		}
-
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$wpdb->query( "ALTER TABLE $table_name DROP COLUMN source" );
 	}
 
 	/**
@@ -219,7 +170,7 @@ class Samrat_Emily_Mail_Tracker {
 			require_once ABSPATH . 'wp-admin/includes/plugin.php';
 		}
 
-		if ( ! is_plugin_active_for_network( plugin_basename( SAMRAT_EMILY_MAIL_TRACKER_PLUGIN_FILE ) ) ) {
+		if ( ! is_plugin_active_for_network( plugin_basename( MAILKEEP_PLUGIN_FILE ) ) ) {
 			return;
 		}
 
@@ -256,7 +207,7 @@ class Samrat_Emily_Mail_Tracker {
 	 */
 	public function register_settings() {
 		register_setting(
-			'samrat_emily_mail_tracker_options_group',
+			'mailkeep_options_group',
 			$this->option_name,
 			array(
 				'type'              => 'array',
@@ -376,7 +327,7 @@ class Samrat_Emily_Mail_Tracker {
 			 * @param string $error Last database error.
 			 * @param array  $data  Row that failed to insert.
 			 */
-			do_action( 'samrat_emily_mail_tracker_log_failed', $wpdb->last_error, $data );
+			do_action( 'mailkeep_log_failed', $wpdb->last_error, $data );
 		}
 
 		return $args;
@@ -414,6 +365,7 @@ class Samrat_Emily_Mail_Tracker {
 		}
 
 		/** This filter is documented in wp-includes/pluggable.php */
+		// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Reading WordPress core's own wp_mail_content_type filter, not declaring a new hook.
 		return substr( strtolower( (string) apply_filters( 'wp_mail_content_type', 'text/plain' ) ), 0, 100 );
 	}
 
@@ -438,7 +390,7 @@ class Samrat_Emily_Mail_Tracker {
 		 * @param array $keys Query argument names.
 		 */
 		$keys = apply_filters(
-			'samrat_emily_mail_tracker_sensitive_keys',
+			'mailkeep_sensitive_keys',
 			array(
 				'key',
 				'token',
@@ -511,7 +463,7 @@ class Samrat_Emily_Mail_Tracker {
 
 		$table_name = $this->get_table_name();
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $table_name is built from $wpdb->prefix and a literal suffix, never from user input, and is escaped by esc_sql() in get_table_name().
 		$wpdb->query( $wpdb->prepare( "DELETE FROM $table_name WHERE created_at < DATE_SUB(NOW(), INTERVAL %d DAY)", $days ) );
 	}
 
@@ -526,8 +478,8 @@ class Samrat_Emily_Mail_Tracker {
 	 * @return array
 	 */
 	public function register_privacy_exporter( $exporters ) {
-		$exporters['samrat-emily-mail-tracker'] = array(
-			'exporter_friendly_name' => __( 'Mail Tracker Logs', 'samrat-emily-mail-tracker' ),
+		$exporters['mailkeep'] = array(
+			'exporter_friendly_name' => __( 'Mailkeep Logs', 'mailkeep' ),
 			'callback'               => array( $this, 'privacy_exporter' ),
 		);
 
@@ -541,8 +493,8 @@ class Samrat_Emily_Mail_Tracker {
 	 * @return array
 	 */
 	public function register_privacy_eraser( $erasers ) {
-		$erasers['samrat-emily-mail-tracker'] = array(
-			'eraser_friendly_name' => __( 'Mail Tracker Logs', 'samrat-emily-mail-tracker' ),
+		$erasers['mailkeep'] = array(
+			'eraser_friendly_name' => __( 'Mailkeep Logs', 'mailkeep' ),
 			'callback'             => array( $this, 'privacy_eraser' ),
 		);
 
@@ -565,7 +517,7 @@ class Samrat_Emily_Mail_Tracker {
 		$table_name = $this->get_table_name();
 		$like       = '%' . $wpdb->esc_like( $email_address ) . '%';
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $table_name is built from $wpdb->prefix and a literal suffix, never from user input, and is escaped by esc_sql() in get_table_name().
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
 				"SELECT * FROM $table_name WHERE to_email LIKE %s ORDER BY created_at DESC LIMIT %d OFFSET %d",
@@ -574,29 +526,30 @@ class Samrat_Emily_Mail_Tracker {
 				$offset
 			)
 		);
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
 
 		$export_items = array();
 
 		foreach ( (array) $rows as $row ) {
 			$export_items[] = array(
-				'group_id'    => 'samrat-emily-mail-tracker',
-				'group_label' => __( 'Logged Emails', 'samrat-emily-mail-tracker' ),
-				'item_id'     => 'samrat-emily-mail-tracker-' . (int) $row->id,
+				'group_id'    => 'mailkeep',
+				'group_label' => __( 'Logged Emails', 'mailkeep' ),
+				'item_id'     => 'mailkeep-' . (int) $row->id,
 				'data'        => array(
 					array(
-						'name'  => __( 'Date', 'samrat-emily-mail-tracker' ),
+						'name'  => __( 'Date', 'mailkeep' ),
 						'value' => $row->created_at,
 					),
 					array(
-						'name'  => __( 'Recipient', 'samrat-emily-mail-tracker' ),
+						'name'  => __( 'Recipient', 'mailkeep' ),
 						'value' => $row->to_email,
 					),
 					array(
-						'name'  => __( 'Subject', 'samrat-emily-mail-tracker' ),
+						'name'  => __( 'Subject', 'mailkeep' ),
 						'value' => $row->subject,
 					),
 					array(
-						'name'  => __( 'Message', 'samrat-emily-mail-tracker' ),
+						'name'  => __( 'Message', 'mailkeep' ),
 						'value' => $row->message,
 					),
 				),
@@ -622,7 +575,7 @@ class Samrat_Emily_Mail_Tracker {
 		$table_name = $this->get_table_name();
 		$like       = '%' . $wpdb->esc_like( $email_address ) . '%';
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $table_name is built from $wpdb->prefix and a literal suffix, never from user input, and is escaped by esc_sql() in get_table_name().
 		$deleted = $wpdb->query( $wpdb->prepare( "DELETE FROM $table_name WHERE to_email LIKE %s LIMIT 500", $like ) );
 
 		return array(
@@ -644,25 +597,25 @@ class Samrat_Emily_Mail_Tracker {
 	 * @return void
 	 */
 	public function enqueue_assets( $hook ) {
-		if ( false === strpos( (string) $hook, 'samrat-emily-mail-tracker' ) ) {
+		if ( false === strpos( (string) $hook, 'mailkeep' ) ) {
 			return;
 		}
 
-		wp_enqueue_style( 'samrat-emily-mail-tracker-admin', SAMRAT_EMILY_MAIL_TRACKER_PLUGIN_ASSETS_URL . 'css/admin.css', array(), SAMRAT_EMILY_MAIL_TRACKER_VERSION );
-		wp_enqueue_script( 'samrat-emily-mail-tracker-admin', SAMRAT_EMILY_MAIL_TRACKER_PLUGIN_ASSETS_URL . 'js/admin.js', array( 'jquery' ), SAMRAT_EMILY_MAIL_TRACKER_VERSION, true );
+		wp_enqueue_style( 'mailkeep-admin', MAILKEEP_PLUGIN_ASSETS_URL . 'css/admin.css', array(), MAILKEEP_VERSION );
+		wp_enqueue_script( 'mailkeep-admin', MAILKEEP_PLUGIN_ASSETS_URL . 'js/admin.js', array( 'jquery' ), MAILKEEP_VERSION, true );
 
 		wp_localize_script(
-			'samrat-emily-mail-tracker-admin',
-			'samratEmilyMailTracker',
+			'mailkeep-admin',
+			'mailkeep',
 			array(
 				'ajax_url'       => admin_url( 'admin-ajax.php' ),
-				'nonce'          => wp_create_nonce( 'samrat_emily_mail_tracker_nonce' ),
-				'confirm_clear'  => __( 'Are you sure you want to clear all email logs? This action cannot be undone.', 'samrat-emily-mail-tracker' ),
-				'confirm_delete' => __( 'Are you sure you want to delete this log?', 'samrat-emily-mail-tracker' ),
-				'confirm_bulk'   => __( 'Are you sure you want to delete selected logs?', 'samrat-emily-mail-tracker' ),
-				'select_one'     => __( 'Please select at least one log.', 'samrat-emily-mail-tracker' ),
-				'generic_error'  => __( 'Something went wrong. Please reload the page and try again.', 'samrat-emily-mail-tracker' ),
-				'clearing'       => __( 'Clearing...', 'samrat-emily-mail-tracker' ),
+				'nonce'          => wp_create_nonce( 'mailkeep_nonce' ),
+				'confirm_clear'  => __( 'Are you sure you want to clear all email logs? This action cannot be undone.', 'mailkeep' ),
+				'confirm_delete' => __( 'Are you sure you want to delete this log?', 'mailkeep' ),
+				'confirm_bulk'   => __( 'Are you sure you want to delete selected logs?', 'mailkeep' ),
+				'select_one'     => __( 'Please select at least one log.', 'mailkeep' ),
+				'generic_error'  => __( 'Something went wrong. Please reload the page and try again.', 'mailkeep' ),
+				'clearing'       => __( 'Clearing...', 'mailkeep' ),
 			)
 		);
 	}
@@ -675,8 +628,8 @@ class Samrat_Emily_Mail_Tracker {
 	 */
 	public function add_plugin_action_links( $links ) {
 		$new_links = array(
-			'<a href="' . esc_url( admin_url( 'admin.php?page=samrat-emily-mail-tracker' ) ) . '">' . esc_html__( 'View Logs', 'samrat-emily-mail-tracker' ) . '</a>',
-			'<a href="' . esc_url( admin_url( 'admin.php?page=samrat-emily-mail-tracker-settings' ) ) . '">' . esc_html__( 'Settings', 'samrat-emily-mail-tracker' ) . '</a>',
+			'<a href="' . esc_url( admin_url( 'admin.php?page=mailkeep' ) ) . '">' . esc_html__( 'View Logs', 'mailkeep' ) . '</a>',
+			'<a href="' . esc_url( admin_url( 'admin.php?page=mailkeep-settings' ) ) . '">' . esc_html__( 'Settings', 'mailkeep' ) . '</a>',
 		);
 
 		return array_merge( $new_links, $links );
@@ -689,17 +642,17 @@ class Samrat_Emily_Mail_Tracker {
 	 */
 	public function add_admin_menu() {
 		add_menu_page(
-			__( 'Mails', 'samrat-emily-mail-tracker' ),
-			__( 'Mails', 'samrat-emily-mail-tracker' ),
+			__( 'Mails', 'mailkeep' ),
+			__( 'Mails', 'mailkeep' ),
 			'manage_options',
-			'samrat-emily-mail-tracker',
+			'mailkeep',
 			array( $this, 'render_admin_page' ),
 			'dashicons-email-alt',
 			26
 		);
 
-		add_submenu_page( 'samrat-emily-mail-tracker', __( 'View Logs', 'samrat-emily-mail-tracker' ), __( 'View Logs', 'samrat-emily-mail-tracker' ), 'manage_options', 'samrat-emily-mail-tracker', array( $this, 'render_admin_page' ) );
-		add_submenu_page( 'samrat-emily-mail-tracker', __( 'Settings', 'samrat-emily-mail-tracker' ), __( 'Settings', 'samrat-emily-mail-tracker' ), 'manage_options', 'samrat-emily-mail-tracker-settings', array( $this, 'render_settings_page' ) );
+		add_submenu_page( 'mailkeep', __( 'View Logs', 'mailkeep' ), __( 'View Logs', 'mailkeep' ), 'manage_options', 'mailkeep', array( $this, 'render_admin_page' ) );
+		add_submenu_page( 'mailkeep', __( 'Settings', 'mailkeep' ), __( 'Settings', 'mailkeep' ), 'manage_options', 'mailkeep-settings', array( $this, 'render_settings_page' ) );
 	}
 
 	/* ---------------------------------------------------------------------
@@ -712,10 +665,10 @@ class Samrat_Emily_Mail_Tracker {
 	 * @return void
 	 */
 	private function verify_ajax_request() {
-		check_ajax_referer( 'samrat_emily_mail_tracker_nonce', 'nonce' );
+		check_ajax_referer( 'mailkeep_nonce', 'nonce' );
 
 		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_send_json_error( __( 'Unauthorized', 'samrat-emily-mail-tracker' ), 403 );
+			wp_send_json_error( __( 'Unauthorized', 'mailkeep' ), 403 );
 		}
 	}
 
@@ -729,7 +682,7 @@ class Samrat_Emily_Mail_Tracker {
 
 		$table_name = $this->get_table_name();
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $table_name is built from $wpdb->prefix and a literal suffix, never from user input, and is escaped by esc_sql() in get_table_name().
 		return (int) $wpdb->get_var( "SELECT COUNT(id) FROM $table_name" );
 	}
 
@@ -741,10 +694,11 @@ class Samrat_Emily_Mail_Tracker {
 	public function ajax_delete_log() {
 		$this->verify_ajax_request();
 
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in verify_ajax_request() above.
 		$log_id = isset( $_POST['id'] ) ? absint( wp_unslash( $_POST['id'] ) ) : 0;
 
 		if ( ! $log_id ) {
-			wp_send_json_error( __( 'Invalid ID', 'samrat-emily-mail-tracker' ) );
+			wp_send_json_error( __( 'Invalid ID', 'mailkeep' ) );
 		}
 
 		global $wpdb;
@@ -754,7 +708,7 @@ class Samrat_Emily_Mail_Tracker {
 
 		// delete() returns 0 when the row is already gone, which is not a failure.
 		if ( false === $deleted ) {
-			wp_send_json_error( __( 'Delete failed', 'samrat-emily-mail-tracker' ) );
+			wp_send_json_error( __( 'Delete failed', 'mailkeep' ) );
 		}
 
 		wp_send_json_success( array( 'total' => $this->get_total_logs() ) );
@@ -769,11 +723,12 @@ class Samrat_Emily_Mail_Tracker {
 		$this->verify_ajax_request();
 
 		// array_map() on a scalar is a TypeError on PHP 8, so the shape is checked first.
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce verified in verify_ajax_request() above; each id is sanitized via absint() on the next line.
 		$raw_ids = isset( $_POST['ids'] ) && is_array( $_POST['ids'] ) ? wp_unslash( $_POST['ids'] ) : array();
 		$ids     = array_values( array_unique( array_filter( array_map( 'absint', $raw_ids ) ) ) );
 
 		if ( empty( $ids ) ) {
-			wp_send_json_error( __( 'No IDs provided', 'samrat-emily-mail-tracker' ) );
+			wp_send_json_error( __( 'No IDs provided', 'mailkeep' ) );
 		}
 
 		global $wpdb;
@@ -781,11 +736,11 @@ class Samrat_Emily_Mail_Tracker {
 		$table_name      = $this->get_table_name();
 		$ids_placeholder = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $table_name is built from $wpdb->prefix and a literal suffix, never from user input, and is escaped by esc_sql() in get_table_name(); $ids_placeholder is a fixed string of %d placeholders sized to count( $ids ).
 		$deleted = $wpdb->query( $wpdb->prepare( "DELETE FROM $table_name WHERE id IN ($ids_placeholder)", $ids ) );
 
 		if ( false === $deleted ) {
-			wp_send_json_error( __( 'Bulk delete failed', 'samrat-emily-mail-tracker' ) );
+			wp_send_json_error( __( 'Bulk delete failed', 'mailkeep' ) );
 		}
 
 		wp_send_json_success( array( 'total' => $this->get_total_logs() ) );
@@ -803,17 +758,17 @@ class Samrat_Emily_Mail_Tracker {
 
 		$table_name = $this->get_table_name();
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.SchemaChange, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $table_name is built from $wpdb->prefix and a literal suffix, never from user input, and is escaped by esc_sql() in get_table_name().
 		$result = $wpdb->query( "TRUNCATE TABLE $table_name" );
 
 		if ( false === $result ) {
 			// TRUNCATE needs DROP privileges, which some hosts withhold.
-			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $table_name is built from $wpdb->prefix and a literal suffix, never from user input, and is escaped by esc_sql() in get_table_name().
 			$result = $wpdb->query( "DELETE FROM $table_name" );
 		}
 
 		if ( false === $result ) {
-			wp_send_json_error( __( 'Clearing the logs failed.', 'samrat-emily-mail-tracker' ) );
+			wp_send_json_error( __( 'Clearing the logs failed.', 'mailkeep' ) );
 		}
 
 		wp_send_json_success( array( 'total' => 0 ) );
@@ -833,10 +788,10 @@ class Samrat_Emily_Mail_Tracker {
 			return;
 		}
 
-		$samrat_emily_mail_tracker_settings = $this->get_settings();
-		$samrat_emily_mail_tracker_option   = $this->option_name;
+		$mailkeep_settings = $this->get_settings();
+		$mailkeep_option   = $this->option_name;
 
-		include SAMRAT_EMILY_MAIL_TRACKER_PLUGIN_DIR . 'templates/admin-settings.php';
+		include MAILKEEP_PLUGIN_DIR . 'templates/admin-settings.php';
 	}
 
 	/**
@@ -854,18 +809,18 @@ class Samrat_Emily_Mail_Tracker {
 		$table_name = $this->get_table_name();
 
 		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- Read only filters.
-		$samrat_emily_mail_tracker_search = isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '';
-		$samrat_emily_mail_tracker_page   = isset( $_GET['paged'] ) ? max( 1, absint( wp_unslash( $_GET['paged'] ) ) ) : 1;
+		$mailkeep_search = isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '';
+		$mailkeep_page   = isset( $_GET['paged'] ) ? max( 1, absint( wp_unslash( $_GET['paged'] ) ) ) : 1;
 		// phpcs:enable WordPress.Security.NonceVerification.Recommended
 
-		$samrat_emily_mail_tracker_limit  = self::PER_PAGE;
-		$samrat_emily_mail_tracker_offset = ( $samrat_emily_mail_tracker_page - 1 ) * $samrat_emily_mail_tracker_limit;
+		$mailkeep_limit  = self::PER_PAGE;
+		$mailkeep_offset = ( $mailkeep_page - 1 ) * $mailkeep_limit;
 
 		$where  = array( '1=1' );
 		$params = array();
 
-		if ( '' !== $samrat_emily_mail_tracker_search ) {
-			$like     = '%' . $wpdb->esc_like( $samrat_emily_mail_tracker_search ) . '%';
+		if ( '' !== $mailkeep_search ) {
+			$like     = '%' . $wpdb->esc_like( $mailkeep_search ) . '%';
 			$where[]  = '(to_email LIKE %s OR subject LIKE %s)';
 			$params[] = $like;
 			$params[] = $like;
@@ -875,23 +830,23 @@ class Samrat_Emily_Mail_Tracker {
 
 		$count_sql = "SELECT COUNT(id) FROM $table_name WHERE $where_sql";
 
-		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $table_name is built from $wpdb->prefix and a literal suffix, never from user input, and is escaped by esc_sql() in get_table_name(); $where_sql only ever contains the two fixed clauses built above, whose placeholder count always matches count( $params ).
 		// prepare() errors when handed no placeholders, so the unfiltered count runs raw.
-		$samrat_emily_mail_tracker_total_items = empty( $params )
+		$mailkeep_total_items = empty( $params )
 			? (int) $wpdb->get_var( $count_sql )
 			: (int) $wpdb->get_var( $wpdb->prepare( $count_sql, $params ) );
 
-		$samrat_emily_mail_tracker_results = $wpdb->get_results(
+		$mailkeep_results = $wpdb->get_results(
 			$wpdb->prepare(
 				"SELECT * FROM $table_name WHERE $where_sql ORDER BY created_at DESC LIMIT %d OFFSET %d",
-				array_merge( $params, array( $samrat_emily_mail_tracker_limit, $samrat_emily_mail_tracker_offset ) )
+				array_merge( $params, array( $mailkeep_limit, $mailkeep_offset ) )
 			)
 		);
-		// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber, PluginCheck.Security.DirectDB.UnescapedDBParameter
 
-		$samrat_emily_mail_tracker_total_pages = (int) ceil( $samrat_emily_mail_tracker_total_items / $samrat_emily_mail_tracker_limit );
+		$mailkeep_total_pages = (int) ceil( $mailkeep_total_items / $mailkeep_limit );
 
-		include SAMRAT_EMILY_MAIL_TRACKER_PLUGIN_DIR . 'templates/admin-logs.php';
+		include MAILKEEP_PLUGIN_DIR . 'templates/admin-logs.php';
 	}
 
 	/**

@@ -6,7 +6,7 @@
  * site of a multisite network. Runs only when WordPress deletes the plugin
  * through the admin UI, never on deactivation.
  *
- * @package Mail_Logbook
+ * @package Mailkeep
  */
 
 if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
@@ -18,43 +18,29 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
  *
  * @return void
  */
-function mail_logbook_uninstall_site() {
+function mailkeep_uninstall_site() {
 	global $wpdb;
 
-	$table_name = $wpdb->prefix . 'mail_logbook_logs';
+	$table_name = esc_sql( $wpdb->prefix . 'mailkeep_logs' );
 
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.SchemaChange, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $table_name is built from $wpdb->prefix and a literal suffix, never from user input, and is escaped by esc_sql().
 	$wpdb->query( "DROP TABLE IF EXISTS $table_name" );
 
-	delete_option( 'mail_logbook_settings' );
-	delete_option( 'mail_logbook_db_version' );
-	delete_transient( 'mail_logbook_cleanup_lock' );
+	delete_option( 'mailkeep_settings' );
+	delete_option( 'mailkeep_db_version' );
+	delete_transient( 'mailkeep_cleanup_lock' );
 
-	wp_clear_scheduled_hook( 'mail_logbook_cleanup' );
-
-	// Safety net: this plugin was previously named "samrat-emily-mail-tracker".
-	// If it is deleted before ever being reactivated under the new name, the
-	// migration in the class never ran, so its old data is cleaned up here too.
-	$legacy_table = $wpdb->prefix . 'samrat_emily_mail_tracker_logs';
-
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-	$wpdb->query( "DROP TABLE IF EXISTS $legacy_table" );
-
-	delete_option( 'samrat_emily_mail_tracker_settings' );
-	delete_option( 'samrat_emily_mail_tracker_db_version' );
-	delete_transient( 'samrat_emily_mail_tracker_cleanup_lock' );
-
-	wp_clear_scheduled_hook( 'samrat_emily_mail_tracker_cleanup' );
+	wp_clear_scheduled_hook( 'mailkeep_cleanup' );
 }
 
 if ( is_multisite() ) {
-	$mail_logbook_site_ids = get_sites( array( 'fields' => 'ids', 'number' => 0 ) );
+	$mailkeep_site_ids = get_sites( array( 'fields' => 'ids', 'number' => 0 ) );
 
-	foreach ( $mail_logbook_site_ids as $mail_logbook_site_id ) {
-		switch_to_blog( $mail_logbook_site_id );
-		mail_logbook_uninstall_site();
+	foreach ( $mailkeep_site_ids as $mailkeep_site_id ) {
+		switch_to_blog( $mailkeep_site_id );
+		mailkeep_uninstall_site();
 		restore_current_blog();
 	}
 } else {
-	mail_logbook_uninstall_site();
+	mailkeep_uninstall_site();
 }
